@@ -1,5 +1,6 @@
-# Object file
-*.o
-
-# Ada Library Information
-*.ali
+# .gitignore
+.env
+.env.local
+.env.*.local
+*.env
+config.env
