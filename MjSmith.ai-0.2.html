@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <!-- Важно для мобильных устройств -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MjSmith AI</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        /* Сброс отступов */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Убираем скролл у body */
+        }
+
+        /* Шапка (опционально) */
+        .app-header {
+            padding: 12px 16px;
+            background: var(--tg-theme-secondary-bg-color, #f8f8f8);
+            border-bottom: 1px solid var(--tg-theme-hint-color, #e0e0e0);
+            font-weight: 600;
+            font-size: clamp(16px, 4vw, 20px); /* Адаптивный размер текста */
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .app-header::before {
+            content: "🤖";
+            font-size: clamp(20px, 5vw, 24px);
+        }
+
+        /* Контейнер чата занимает всё свободное место */
+        #chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            scroll-behavior: smooth;
+        }
+
+        /* Сообщения */
+        .message {
+            padding: 10px 14px;
+            border-radius: 18px;
+            max-width: 85%; /* На телефонах шире */
+            width: fit-content;
+            word-wrap: break-word;
+            line-height: 1.4;
+            font-size: clamp(14px, 3.5vw, 16px); /* Текст адаптируется */
+            animation: fadeIn 0.2s ease;
+        }
+
+        /* На больших экранах (планшеты) ограничиваем ширину */
+        @media (min-width: 768px) {
+            .message {
+                max-width: 70%;
+                font-size: 15px;
+            }
+        }
+
+        /* На очень больших экранах */
+        @media (min-width: 1024px) {
+            body {
+                max-width: 800px;
+                margin: 0 auto;
+                border-left: 1px solid var(--tg-theme-hint-color, #e0e0e0);
+                border-right: 1px solid var(--tg-theme-hint-color, #e0e0e0);
+            }
+        }
+
+        .user-message {
+            background: var(--tg-theme-button-color, #40a7e3);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+
+        .ai-message {
+            background: var(--tg-theme-secondary-bg-color, #f0f0f0);
+            color: var(--tg-theme-text-color, #000000);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+
+        /* Область ввода всегда внизу */
+        #input-area {
+            display: flex;
+            gap: 8px;
+            padding: 10px 12px;
+            background: var(--tg-theme-bg-color, #ffffff);
+            border-top: 1px solid var(--tg-theme-hint-color, #dddddd);
+            align-items: center;
+            /* Адаптивные отступы */
+            padding-bottom: max(10px, env(safe-area-inset-bottom, 10px));
+        }
+
+        #message-input {
+            flex: 1;
+            min-width: 0; /* Важно для flex */
+            padding: 12px 16px;
+            border: 1px solid var(--tg-theme-hint-color, #cccccc);
+            border-radius: 24px;
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            outline: none;
+            font-size: clamp(14px, 3.5vw, 16px);
+            transition: border-color 0.2s;
+        }
+
+        #message-input:focus {
+            border-color: var(--tg-theme-button-color, #40a7e3);
+        }
+
+        #send-btn {
+            background: var(--tg-theme-button-color, #40a7e3);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none;
+            border-radius: 24px;
+            padding: 12px 20px;
+            font-size: clamp(14px, 3.5vw, 16px);
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+            white-space: nowrap;
+            /* Минимальная ширина для кнопки */
+            min-width: 80px;
+        }
+
+        /* Эффект нажатия */
+        #send-btn:active:not(:disabled) {
+            transform: scale(0.96);
+        }
+
+        #send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Индикатор печати */
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 12px 16px;
+            background: var(--tg-theme-secondary-bg-color, #f0f0f0);
+            border-radius: 18px;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+
+        .typing-indicator span {
+            width: clamp(6px, 2vw, 8px);
+            height: clamp(6px, 2vw, 8px);
+            background: var(--tg-theme-hint-color, #888888);
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.6; }
+            30% { transform: translateY(-4px); opacity: 1; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Адаптация для очень маленьких экранов */
+        @media (max-width: 360px) {
+            #input-area {
+                padding: 8px;
+                gap: 4px;
+            }
+            
+            #send-btn {
+                padding: 10px 12px;
+                min-width: 60px;
+            }
+            
+            #message-input {
+                padding: 10px 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Опциональная шапка (можно убрать) -->
+    <div class="app-header">MjSmith AI</div>
+    
+    <div id="chat-container"></div>
+    
+    <div id="input-area">
+        <input type="text" id="message-input" placeholder="Напишите сообщение..." autocomplete="off">
+        <button id="send-btn" disabled>Отправить</button>
+    </div>
+
+    <script>
+        // Инициализация Telegram WebApp
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand(); // Разворачиваем на весь экран
+
+        // Элементы
+        const chatContainer = document.getElementById('chat-container');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-btn');
+
+        // Конфигурация Groq
+        const GROQ_API_KEY = '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'; // ⚠️ ЗАМЕНИТЕ!
+        const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+        // --- Функции ---
+        function addMessage(text, isUser = true) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'ai-message'}`;
+            messageDiv.textContent = text;
+            chatContainer.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        function showTypingIndicator() {
+            const indicator = document.createElement('div');
+            indicator.className = 'typing-indicator';
+            indicator.id = 'typing-indicator';
+            indicator.innerHTML = '<span></span><span></span><span></span>';
+            chatContainer.appendChild(indicator);
+            scrollToBottom();
+        }
+
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typing-indicator');
+            if (indicator) indicator.remove();
+        }
+
+        function scrollToBottom() {
+            chatContainer.scrollTo({
+                top: chatContainer.scrollHeight,
+                behavior: 'smooth'
+            });
+        }
+
+        function setLoadingState(isLoading) {
+            sendButton.disabled = isLoading || !messageInput.value.trim();
+            messageInput.disabled = isLoading;
+            sendButton.textContent = isLoading ? '...' : 'Отправить';
+            if (!isLoading) messageInput.focus();
+        }
+
+        // Запрос к Groq
+        async function sendToGroq(userMessage) {
+            addMessage(userMessage, true);
+            showTypingIndicator();
+            setLoadingState(true);
+
+            try {
+                const response = await fetch(GROQ_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${GROQ_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: 'llama-3.1-8b-instant',
+                        messages: [
+                            {
+                                role: 'system',
+                                content: 'Ты полезный AI-ассистент MjSmith. Отвечай кратко и по делу.'
+                            },
+                            { role: 'user', content: userMessage }
+                        ],
+                        temperature: 0.7,
+                        max_tokens: 1024
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                removeTypingIndicator();
+                addMessage(data.choices[0].message.content, false);
+
+            } catch (error) {
+                console.error('Groq error:', error);
+                removeTypingIndicator();
+                addMessage(`❌ Ошибка: ${error.message}`, false);
+            } finally {
+                setLoadingState(false);
+            }
+        }
+
+        // Обработчики
+        sendButton.addEventListener('click', () => {
+            const text = messageInput.value.trim();
+            if (text) {
+                messageInput.value = '';
+                sendToGroq(text);
+            }
+        });
+
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !sendButton.disabled && messageInput.value.trim()) {
+                e.preventDefault();
+                const text = messageInput.value.trim();
+                messageInput.value = '';
+                sendToGroq(text);
+            }
+        });
+
+        messageInput.addEventListener('input', () => {
+            sendButton.disabled = !messageInput.value.trim();
+        });
+
+        // Приветствие
+        window.addEventListener('load', () => {
+            addMessage('👋 Привет! Я MjSmith. Чем помочь?', false);
+            messageInput.focus();
+        });
+
+        // Обработка изменения размеров окна (поворот экрана)
+        window.addEventListener('resize', () => {
+            scrollToBottom();
+        });
+    </script>
+</body>
+</html>
