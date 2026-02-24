@@ -2,7 +2,6 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <!-- Важно для мобильных устройств -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MjSmith AI</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -21,16 +20,15 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
-            overflow: hidden; /* Убираем скролл у body */
+            overflow: hidden;
         }
 
-        /* Шапка (опционально) */
         .app-header {
             padding: 12px 16px;
             background: var(--tg-theme-secondary-bg-color, #f8f8f8);
             border-bottom: 1px solid var(--tg-theme-hint-color, #e0e0e0);
             font-weight: 600;
-            font-size: clamp(16px, 4vw, 20px); /* Адаптивный размер текста */
+            font-size: clamp(16px, 4vw, 20px);
             display: flex;
             align-items: center;
             gap: 8px;
@@ -41,7 +39,6 @@
             font-size: clamp(20px, 5vw, 24px);
         }
 
-        /* Контейнер чата занимает всё свободное место */
         #chat-container {
             flex: 1;
             overflow-y: auto;
@@ -52,19 +49,17 @@
             scroll-behavior: smooth;
         }
 
-        /* Сообщения */
         .message {
             padding: 10px 14px;
             border-radius: 18px;
-            max-width: 85%; /* На телефонах шире */
+            max-width: 85%;
             width: fit-content;
             word-wrap: break-word;
             line-height: 1.4;
-            font-size: clamp(14px, 3.5vw, 16px); /* Текст адаптируется */
+            font-size: clamp(14px, 3.5vw, 16px);
             animation: fadeIn 0.2s ease;
         }
 
-        /* На больших экранах (планшеты) ограничиваем ширину */
         @media (min-width: 768px) {
             .message {
                 max-width: 70%;
@@ -72,7 +67,6 @@
             }
         }
 
-        /* На очень больших экранах */
         @media (min-width: 1024px) {
             body {
                 max-width: 800px;
@@ -96,7 +90,6 @@
             border-bottom-left-radius: 4px;
         }
 
-        /* Область ввода всегда внизу */
         #input-area {
             display: flex;
             gap: 8px;
@@ -104,13 +97,12 @@
             background: var(--tg-theme-bg-color, #ffffff);
             border-top: 1px solid var(--tg-theme-hint-color, #dddddd);
             align-items: center;
-            /* Адаптивные отступы */
             padding-bottom: max(10px, env(safe-area-inset-bottom, 10px));
         }
 
         #message-input {
             flex: 1;
-            min-width: 0; /* Важно для flex */
+            min-width: 0;
             padding: 12px 16px;
             border: 1px solid var(--tg-theme-hint-color, #cccccc);
             border-radius: 24px;
@@ -136,11 +128,9 @@
             cursor: pointer;
             transition: opacity 0.2s, transform 0.1s;
             white-space: nowrap;
-            /* Минимальная ширина для кнопки */
             min-width: 80px;
         }
 
-        /* Эффект нажатия */
         #send-btn:active:not(:disabled) {
             transform: scale(0.96);
         }
@@ -150,7 +140,6 @@
             cursor: not-allowed;
         }
 
-        /* Индикатор печати */
         .typing-indicator {
             display: flex;
             gap: 4px;
@@ -182,7 +171,6 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Адаптация для очень маленьких экранов */
         @media (max-width: 360px) {
             #input-area {
                 padding: 8px;
@@ -201,7 +189,6 @@
     </style>
 </head>
 <body>
-    <!-- Опциональная шапка (можно убрать) -->
     <div class="app-header">MjSmith AI</div>
     
     <div id="chat-container"></div>
@@ -212,133 +199,154 @@
     </div>
 
     <script>
-        // Инициализация Telegram WebApp
-        const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand(); // Разворачиваем на весь экран
-
-        // Элементы
-        const chatContainer = document.getElementById('chat-container');
-        const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('send-btn');
-
-        // Конфигурация Groq
-        const GROQ_API_KEY = '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'; // ⚠️ ЗАМЕНИТЕ!
-        const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-
-        // --- Функции ---
-        function addMessage(text, isUser = true) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${isUser ? 'user-message' : 'ai-message'}`;
-            messageDiv.textContent = text;
-            chatContainer.appendChild(messageDiv);
-            scrollToBottom();
-        }
-
-        function showTypingIndicator() {
-            const indicator = document.createElement('div');
-            indicator.className = 'typing-indicator';
-            indicator.id = 'typing-indicator';
-            indicator.innerHTML = '<span></span><span></span><span></span>';
-            chatContainer.appendChild(indicator);
-            scrollToBottom();
-        }
-
-        function removeTypingIndicator() {
-            const indicator = document.getElementById('typing-indicator');
-            if (indicator) indicator.remove();
-        }
-
-        function scrollToBottom() {
-            chatContainer.scrollTo({
-                top: chatContainer.scrollHeight,
-                behavior: 'smooth'
-            });
-        }
-
-        function setLoadingState(isLoading) {
-            sendButton.disabled = isLoading || !messageInput.value.trim();
-            messageInput.disabled = isLoading;
-            sendButton.textContent = isLoading ? '...' : 'Отправить';
-            if (!isLoading) messageInput.focus();
-        }
-
-        // Запрос к Groq
-        async function sendToGroq(userMessage) {
-            addMessage(userMessage, true);
-            showTypingIndicator();
-            setLoadingState(true);
-
+        // ===== ФУНКЦИЯ ЗАГРУЗКИ ENV (ВСТАВЛЕНА СЮДА) =====
+        async function loadEnv() {
             try {
-                const response = await fetch(GROQ_API_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${GROQ_API_KEY}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        model: 'llama-3.1-8b-instant',
-                        messages: [
-                            {
-                                role: 'system',
-                                content: 'Ты полезный AI-ассистент MjSmith. Отвечай кратко и по делу.'
-                            },
-                            { role: 'user', content: userMessage }
-                        ],
-                        temperature: 0.7,
-                        max_tokens: 1024
-                    })
+                const response = await fetch('.env');
+                const text = await response.text();
+                const lines = text.split('\n');
+                
+                lines.forEach(line => {
+                    const [key, value] = line.split('=');
+                    if (key && value) {
+                        window[key.trim()] = value.trim();
+                    }
                 });
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error?.message || `HTTP ${response.status}`);
-                }
-
-                const data = await response.json();
-                removeTypingIndicator();
-                addMessage(data.choices[0].message.content, false);
-
+                
+                console.log('✅ ENV загружен');
             } catch (error) {
-                console.error('Groq error:', error);
-                removeTypingIndicator();
-                addMessage(`❌ Ошибка: ${error.message}`, false);
-            } finally {
-                setLoadingState(false);
+                console.error('❌ Ошибка загрузки .env:', error);
             }
         }
 
-        // Обработчики
-        sendButton.addEventListener('click', () => {
-            const text = messageInput.value.trim();
-            if (text) {
-                messageInput.value = '';
-                sendToGroq(text);
-            }
-        });
+        // ===== ОСНОВНОЙ КОД (ЗАПУСКАЕТСЯ ПОСЛЕ ЗАГРУЗКИ ENV) =====
+        loadEnv().then(() => {
+            // Инициализация Telegram WebApp
+            const tg = window.Telegram.WebApp;
+            tg.ready();
+            tg.expand();
 
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !sendButton.disabled && messageInput.value.trim()) {
-                e.preventDefault();
+            // Элементы
+            const chatContainer = document.getElementById('chat-container');
+            const messageInput = document.getElementById('message-input');
+            const sendButton = document.getElementById('send-btn');
+
+            // Конфигурация Groq (ТЕПЕРЬ ИЗ window)
+            const GROQ_API_KEY = window.GROQ_API_KEY || 'YOUR_GROQ_API_KEY'; // Запасной вариант
+            const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+            console.log('Ключ загружен:', GROQ_API_KEY ? '✅' : '❌');
+
+            // --- Функции ---
+            function addMessage(text, isUser = true) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${isUser ? 'user-message' : 'ai-message'}`;
+                messageDiv.textContent = text;
+                chatContainer.appendChild(messageDiv);
+                scrollToBottom();
+            }
+
+            function showTypingIndicator() {
+                const indicator = document.createElement('div');
+                indicator.className = 'typing-indicator';
+                indicator.id = 'typing-indicator';
+                indicator.innerHTML = '<span></span><span></span><span></span>';
+                chatContainer.appendChild(indicator);
+                scrollToBottom();
+            }
+
+            function removeTypingIndicator() {
+                const indicator = document.getElementById('typing-indicator');
+                if (indicator) indicator.remove();
+            }
+
+            function scrollToBottom() {
+                chatContainer.scrollTo({
+                    top: chatContainer.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }
+
+            function setLoadingState(isLoading) {
+                sendButton.disabled = isLoading || !messageInput.value.trim();
+                messageInput.disabled = isLoading;
+                sendButton.textContent = isLoading ? '...' : 'Отправить';
+                if (!isLoading) messageInput.focus();
+            }
+
+            // Запрос к Groq
+            async function sendToGroq(userMessage) {
+                addMessage(userMessage, true);
+                showTypingIndicator();
+                setLoadingState(true);
+
+                try {
+                    const response = await fetch(GROQ_API_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${GROQ_API_KEY}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            model: 'llama-3.1-8b-instant',
+                            messages: [
+                                {
+                                    role: 'system',
+                                    content: 'Ты полезный AI-ассистент MjSmith. Отвечай кратко и по делу.'
+                                },
+                                { role: 'user', content: userMessage }
+                            ],
+                            temperature: 0.7,
+                            max_tokens: 1024
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    removeTypingIndicator();
+                    addMessage(data.choices[0].message.content, false);
+
+                } catch (error) {
+                    console.error('Groq error:', error);
+                    removeTypingIndicator();
+                    addMessage(`❌ Ошибка: ${error.message}`, false);
+                } finally {
+                    setLoadingState(false);
+                }
+            }
+
+            // Обработчики
+            sendButton.addEventListener('click', () => {
                 const text = messageInput.value.trim();
-                messageInput.value = '';
-                sendToGroq(text);
-            }
-        });
+                if (text) {
+                    messageInput.value = '';
+                    sendToGroq(text);
+                }
+            });
 
-        messageInput.addEventListener('input', () => {
-            sendButton.disabled = !messageInput.value.trim();
-        });
+            messageInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !sendButton.disabled && messageInput.value.trim()) {
+                    e.preventDefault();
+                    const text = messageInput.value.trim();
+                    messageInput.value = '';
+                    sendToGroq(text);
+                }
+            });
 
-        // Приветствие
-        window.addEventListener('load', () => {
+            messageInput.addEventListener('input', () => {
+                sendButton.disabled = !messageInput.value.trim();
+            });
+
+            // Приветствие
             addMessage('👋 Привет! Я MjSmith. Чем помочь?', false);
             messageInput.focus();
-        });
 
-        // Обработка изменения размеров окна (поворот экрана)
-        window.addEventListener('resize', () => {
-            scrollToBottom();
+            // Обработка изменения размеров окна
+            window.addEventListener('resize', scrollToBottom);
         });
     </script>
 </body>
